@@ -1,5 +1,6 @@
 const events = require('events');
 const ws     = require('ws');
+const http   = require('http');
 const https  = require('https');
 const fs     = require('fs');
 const uuid    = require('uuid');
@@ -25,7 +26,7 @@ xSocket.Server = class xSocketServer extends events
         if(typeof options['key'] === 'string'){
             options['key'] = fs.readFileSync(options['key']);
         }
-        this.__http = https.createServer(options, (req, res) => {
+        const requestHandler = (req, res) => {
             $this.emit('https', req, res);
             setTimeout(() => {
                 try{
@@ -33,7 +34,8 @@ xSocket.Server = class xSocketServer extends events
                     res.end();
                 }catch (e){}
             }, 5000);
-        });
+        };
+        this.__http = options['cert'] ? https.createServer(options, requestHandler) : http.createServer(requestHandler);
         let SocketObjectTimeout = parseInt($this.getSettingsVal('socketObjectTimeout', 0));
         if(SocketObjectTimeout !== SocketObjectTimeout || SocketObjectTimeout < 0){
             SocketObjectTimeout = 0;
@@ -99,7 +101,7 @@ xSocket.Server = class xSocketServer extends events
                 wsClient.query['xSOSign'] = uuid.v4();
                 SocketObject = new xSocket.xSocketObject({'socketObjectTimeout' : SocketObjectTimeout}, req);
                 const isAuth = $this.getSettingsVal('auth', false);
-                if(!isAuth){
+                if(!isAuth && typeof $this.__useCallback['auth'] !== 'function'){
                     $this.use('auth', (SocketObject, successCallback) => {
                         successCallback();
                     });
@@ -203,7 +205,7 @@ xSocket.Server = class xSocketServer extends events
      * @returns {number}
      */
     getPort(){
-        return this.getSettings()['port'] || 443;
+        return this.getSettings()['port'] || (this.__http instanceof https.Server ? 443 : 80);
     }
 
     /**

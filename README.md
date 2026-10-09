@@ -1,17 +1,25 @@
 # xSocket
 
-##Server:
+## Server:
 ```javascript
 // Init
 const xSocket = require('xsocket');
 
 const xServer = new xSocket.Server({
-    'port' : 8752, // Port listen
+    'port' : 8752, // (Not necessary) Port listen (Default: 443 with certificate, 80 without)
     'socketObjectTimeout' : 30000, // (Not necessary) Allows the user to reconnect within 30 seconds (Default: 0)
-    'https' : {
+    'https' : { // (Not necessary) Without certificate server uses ws:// instead of wss://
         "cert" : "<path>/cert.pem",
-        "key" : "<path>/private.key>"
+        "key" : "<path>/private.key"
     }
+});
+
+// (Not necessary) Auth, by default all connections are allowed
+xServer.use('auth', (xSocketObject, success, failed) => {
+    if(xSocketObject.getQueryVal('name')){
+        return success();
+    }
+    failed('Access denied');
 });
 
 xServer.on('error', (err) => {
@@ -73,21 +81,21 @@ xServer.on('connect', (xSocketObject) => {
 // Listen
 xServer.listen().then(() => {
     console.log('Listen then');
-}).catch(() => {
+}).catch((e) => {
     console.log('Listen error', e.message);
 });
 ```
 
 
 
-##Client (ECMAScript 5+):
+## Client (ECMAScript 5+):
 
 
 ```javascript
 // Init 
 var xSocket = require('xsocket'); // OR web <script type="text/javascript" src="./xSocket.min.js"></script>
 
-var xClient = new xSocket(['wss://server_domain.com:8752'], {'name' : 'Bob'}); // Or xSocket.Clent()
+var xClient = new xSocket(['wss://server_domain.com:8752'], {'name' : 'Bob'}); // Or xSocket.Client(), ws:// if server without certificate
 
 // Error event
 xClient.on('error', function (err) {
@@ -103,16 +111,16 @@ xClient.on('connect', function (xSocketObject) {
     xSocketObject.send(
         'helloServer', // Name message
         {'message' : 'Hello server'}, // Data message
-        2000 // TTL (ready response (default: 5s)
+        2000 // TTL ready response (Default: 3s)
         ).then(function(xSocketData){
-            console.log('Send to server message #'+xSocketData.getID(), xSocketData.getType, xSocketData.getData());
+            console.log('Send to server message #'+xSocketData.getID(), xSocketData.getType(), xSocketData.getData());
             
             // Ready response
-            xSocketData.on('response', function (xSocketData, error){
+            xSocketData.on('response', function (resData, error){
                 if(error){
-                    return console.error('Server responsed error', e.message);
+                    return console.error('Server responsed error', error);
                 }
-                console.log('Server responsed #'+xSocketData.getID(), xSocketData.getType, xSocketData.getResData());
+                console.log('Server responsed #'+xSocketData.getID(), xSocketData.getType(), resData);
             });
     }).catch(function (e){
         console.log('Message not sended, info:', e.message);
@@ -121,9 +129,9 @@ xClient.on('connect', function (xSocketObject) {
     //xSocketObject.sendReady(
     //    'helloServer', // Name message
     //    {'message' : 'Hello server'}, // Data message
-    //    2000 // TTL (ready response (default: 5s)
-    //).then(function (xSocketObject){
-    //    console.log('Server responsed #'+xSocketData.getID(), xSocketData.getType, xSocketData.getResData());
+    //    2000 // TTL ready response (Default: 3s)
+    //).then(function (xSocketData){
+    //    console.log('Server responsed #'+xSocketData.getID(), xSocketData.getType(), xSocketData.getResData());
     //}).catch(function (e){
     //    console.error('Server responsed error', e.message);
     //});

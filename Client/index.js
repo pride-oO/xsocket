@@ -65,7 +65,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                 });
             }
             __ws = null;
-            var url = __urlList.length > 1 ? xSocket.helpers.getRandInt(0, __urlList.length - 1) : __urlList[0];
+            var url = __urlList[xSocket.helpers.getRandInt(0, __urlList.length - 1)];
             url += (url.indexOf('?') === -1 ? '?' : '&');
 
             if(__SocketObject && __SocketObject.getID().length && __SocketObject.getSign().length){
@@ -159,8 +159,8 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                             __SocketObject = false;
                             $this.emit('destroy', socketObject, msg);
                         });
-                        __SocketObject.on('disconnect', function() {
-                            $this.emit('disconnect', __SocketObject);
+                        __SocketObject.on('disconnect', function(socketObject, msg) {
+                            $this.emit('disconnect', socketObject, msg);
                         });
                         __SocketObject.on('reconnect', function() {
                             $this.emit('reconnect', __SocketObject);
@@ -321,7 +321,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                 if(action){
                     ttl = typeof ttl === 'number' && !isNaN(ttl) && ttl > 0 ? ttl : 0;
                     destroyTimeout = setTimeout(function (socketObject){
-                        socketObject.destroy(ttl);
+                        socketObject.destroy('socketObjectTimeout');
                         destroyTimeout = false;
                     }, ttl, socketObject);
                 }

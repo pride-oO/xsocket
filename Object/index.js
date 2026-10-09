@@ -292,7 +292,7 @@ xSocket.xSocketObject = function (__ServerConfigure, __req){
             }]);
         }
         __ws = ws;
-        ws.SocketObject = ws;
+        ws.SocketObject = $this;
         $this.emit('ws|connect', ws);
         return true;
     };
@@ -352,7 +352,7 @@ xSocket.xSocketObject = function (__ServerConfigure, __req){
             }
             var socketData;
             if(type === 'SD|create'){
-                if(typeof data['type'] == 'string' && data['type'].length || !$this.getSocketData(data['ID'])){
+                if(typeof data['type'] == 'string' && data['type'].length && !$this.getSocketData(data['ID'])){
                     socketData = new xSocket.Data(false, data, $this);
                     socketData.response = function (data, error){
                         var p = new Promise(function (resolve, reject){

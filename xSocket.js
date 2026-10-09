@@ -370,7 +370,7 @@ xSocket.Data = function xSocketData(__isOutput, __object, __socketObject){
     this.send = function (){
         return new Promise(function (resolve, reject) {
             if($this.getDestroy()){
-                return reject(new Promise($this.getDestroy));
+                return reject(new Error($this.getDestroy()));
             }
             if(__isOutput) {
                 $this.emit('send');
@@ -776,7 +776,7 @@ xSocket.xSocketObject = function (__ServerConfigure, __req){
             }]);
         }
         __ws = ws;
-        ws.SocketObject = ws;
+        ws.SocketObject = $this;
         $this.emit('ws|connect', ws);
         return true;
     };
@@ -836,7 +836,7 @@ xSocket.xSocketObject = function (__ServerConfigure, __req){
             }
             var socketData;
             if(type === 'SD|create'){
-                if(typeof data['type'] == 'string' && data['type'].length || !$this.getSocketData(data['ID'])){
+                if(typeof data['type'] == 'string' && data['type'].length && !$this.getSocketData(data['ID'])){
                     socketData = new xSocket.Data(false, data, $this);
                     socketData.response = function (data, error){
                         var p = new Promise(function (resolve, reject){
@@ -955,7 +955,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                 });
             }
             __ws = null;
-            var url = __urlList.length > 1 ? xSocket.helpers.getRandInt(0, __urlList.length - 1) : __urlList[0];
+            var url = __urlList[xSocket.helpers.getRandInt(0, __urlList.length - 1)];
             url += (url.indexOf('?') === -1 ? '?' : '&');
 
             if(__SocketObject && __SocketObject.getID().length && __SocketObject.getSign().length){
@@ -1049,8 +1049,8 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                             __SocketObject = false;
                             $this.emit('destroy', socketObject, msg);
                         });
-                        __SocketObject.on('disconnect', function() {
-                            $this.emit('disconnect', __SocketObject);
+                        __SocketObject.on('disconnect', function(socketObject, msg) {
+                            $this.emit('disconnect', socketObject, msg);
                         });
                         __SocketObject.on('reconnect', function() {
                             $this.emit('reconnect', __SocketObject);
@@ -1211,7 +1211,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                 if(action){
                     ttl = typeof ttl === 'number' && !isNaN(ttl) && ttl > 0 ? ttl : 0;
                     destroyTimeout = setTimeout(function (socketObject){
-                        socketObject.destroy(ttl);
+                        socketObject.destroy('socketObjectTimeout');
                         destroyTimeout = false;
                     }, ttl, socketObject);
                 }

@@ -155,7 +155,7 @@ xSocket.Data = function xSocketData(__isOutput, __object, __socketObject){
     this.send = function (){
         return new Promise(function (resolve, reject) {
             if($this.getDestroy()){
-                return reject(new Promise($this.getDestroy));
+                return reject(new Error($this.getDestroy()));
             }
             if(__isOutput) {
                 $this.emit('send');
