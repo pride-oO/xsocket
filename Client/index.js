@@ -295,11 +295,13 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
             }, 1000);
         });
         if(xSocket.helpers.getWindow()){
-            xSocket.helpers.getWindow().addEventListener("unload", function() {
+            var closeConnection = function() {
                 try{
                     __ws.closeConnection('end');
                 }catch (e){}
-            });
+            };
+            xSocket.helpers.getWindow().addEventListener("pagehide", closeConnection);
+            xSocket.helpers.getWindow().addEventListener("unload", closeConnection);
         }else if(xSocket.helpers.getProcess()){
             xSocket.helpers.getProcess().on('exit', function (){
                 try{
@@ -317,7 +319,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                     }catch (e){}
                 }
                 if(action){
-                    ttl = typeof ttl === 'number' && ttl !== ttl && ttl > 0 ? ttl : 0;
+                    ttl = typeof ttl === 'number' && !isNaN(ttl) && ttl > 0 ? ttl : 0;
                     destroyTimeout = setTimeout(function (socketObject){
                         socketObject.destroy(ttl);
                         destroyTimeout = false;
