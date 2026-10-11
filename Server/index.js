@@ -3,7 +3,7 @@ const ws     = require('ws');
 const http   = require('http');
 const https  = require('https');
 const fs     = require('fs');
-const uuid    = require('uuid');
+const crypto = require('crypto');
 
 xSocket.Server = class xSocketServer extends events
 {
@@ -16,6 +16,7 @@ xSocket.Server = class xSocketServer extends events
         this.__isListen = undefined;
         this.__useCallback = {};
         this.__socketObjectList = {};
+        this.__versionWarnMap = {};
 
 
         const $this = this;
@@ -41,7 +42,15 @@ xSocket.Server = class xSocketServer extends events
             SocketObjectTimeout = 0;
             console.warn('[warn|xSocket]', 'socketObjectTimeout invalid value,', 'set default is 0');
         }
-        this.__ws = new ws.Server({ 'server' : this.__http});
+        let perMessageDeflate = $this.getSettingsVal('perMessageDeflate', false);
+        if(perMessageDeflate === true){
+            perMessageDeflate = {
+                'threshold' : 1024,
+                'serverNoContextTakeover' : true,
+                'clientNoContextTakeover' : true
+            };
+        }
+        this.__ws = new ws.Server({'server' : this.__http, 'perMessageDeflate' : perMessageDeflate});
         this.__ws.on('connection', (wsClient, req) => {
             wsClient.isConnection = () => {
                 return wsClient.readyState === 1;
@@ -63,7 +72,10 @@ xSocket.Server = class xSocketServer extends events
             };
             wsClient.sendObject = (object) => {
                 try {
-                    return wsClient.sendMessage(JSON.stringify(object))
+                    if(wsClient.isConnection()){
+                        wsClient.send(xSocket.helpers.encodeMessage(object));
+                        return true;
+                    }
                 }catch (e){}
                 return false;
             };
@@ -87,6 +99,11 @@ xSocket.Server = class xSocketServer extends events
                 }
                 return query;
             })(req.url || '');
+            const clientVersion = String(wsClient.query['xV'] || 'unknown');
+            if(clientVersion !== xSocket.VERSION && !$this.__versionWarnMap[clientVersion]){
+                $this.__versionWarnMap[clientVersion] = true;
+                console.warn('[warn|xSocket]', 'Version mismatch', 'server ' + xSocket.VERSION + ', client ' + clientVersion);
+            }
             let SocketObject;
             wsClient.query['xSOId']   = String(wsClient.query['xSOId'] || '');
             wsClient.query['xSOSign'] = String(wsClient.query['xSOSign'] || '');
@@ -97,8 +114,8 @@ xSocket.Server = class xSocketServer extends events
                 }
             }
             if(!SocketObject){
-                wsClient.query['xSOId'] = uuid.v4();
-                wsClient.query['xSOSign'] = uuid.v4();
+                wsClient.query['xSOId'] = crypto.randomUUID();
+                wsClient.query['xSOSign'] = crypto.randomUUID();
                 SocketObject = new xSocket.xSocketObject({'socketObjectTimeout' : SocketObjectTimeout}, req);
                 const isAuth = $this.getSettingsVal('auth', false);
                 if(!isAuth && typeof $this.__useCallback['auth'] !== 'function'){
@@ -157,18 +174,15 @@ xSocket.Server = class xSocketServer extends events
             }, 5000);
             wsClient.onmessage = (e) => {
                 msgInc++;
-                let msg = String(e.data || '');
-                if(msg === 'pong'){
+                if(e.data === 'pong' || !SocketObject){
                     return;
                 }
-                if(SocketObject){
-                    try{
-                        let body = JSON.parse(msg);
-                        if( typeof body === 'object' && typeof body[0] === 'string' && typeof body[1] === 'object'){
-                            SocketObject.emit('ws|message', body[0], body[1]);
-                        }
-                    }catch (e){}
-                }
+                try{
+                    const body = xSocket.helpers.decodeMessage(e.data);
+                    if(body){
+                        SocketObject.emit('ws|message', body);
+                    }
+                }catch (e){}
             };
             wsClient.onclose = (e) => {
                 try{clearInterval(pingTimeout); }catch (e){}

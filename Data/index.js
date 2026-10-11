@@ -2,267 +2,261 @@
  *
  * @param __isOutput
  * @param __object
+ * @param __socketObject
  * @constructor
  */
 xSocket.Data = function xSocketData(__isOutput, __object, __socketObject){
-    __object = typeof __object === 'object' ? __object : {};
     xSocket.helpers.EventEmitter.call(this);
     this.setMaxListeners(0);
+    __object = typeof __object === 'object' && __object ? __object : {};
 
-    var DEFAULT_TIMEOUT = 10000;
-    var DEFAULT_TTL     = 3000;
-    var $this     = this;
-    this.__ID      = typeof __object.ID === 'string' ? __object.ID : '';
-    this.__type    = typeof __object.type === 'string' ? __object.type : '';
-    this.__data    = typeof __object.data === 'object' ? __object.data : {};
-    this.__ttl     = typeof __object.ttl === 'number' && __object.ttl % 1 === 0  && __object.ttl >= 0 ? __object.ttl : DEFAULT_TTL;
-    this.__resData = {};
-    this.__error   = false;
-    this.__status  = xSocket.Data.STATUS_NEW;
-    this.__destroy = false;
-
-    /**
-     *
-     * @returns {string}
-     */
-    this.getID = function (){
-        return String(this.__ID);
-    };
-
-    /**
-     *
-     * @returns {string}
-     */
-    this.getType = function (){
-        return String(this.__type);
-    };
-
-    /**
-     *
-     * @returns {number}
-     */
-    this.getTTL = function (){
-        return this.__ttl;
-    };
-
-    /**
-     *
-     * @returns {{}}
-     */
-    this.getData = function (){
-        return this.__data || {};
-    };
-
-    /**
-     *
-     * @param key
-     * @param def
-     * @returns {*}
-     */
-    this.getDataVal = function (key, def){
-        return this.getData()[key] || def;
-    };
-
-    /**
-     *
-     * @returns {{}}
-     */
-    this.getResData = function (){
-        return this.__resData || {};
-    };
-
-    /**
-     *
-     * @param key
-     * @param def
-     * @returns {*}
-     */
-    this.getResDataVal = function (key, def){
-        return this.getResData()[key] || def;
-    };
-
-    /**
-     *
-     * @returns {number}
-     */
-    this.getStatus = function (){
-        return parseInt(this.__status);
-    };
-
-    /**
-     *
-     * @returns {boolean|*|string}
-     */
-    this.getDestroy = function (){
-        return this.__destroy || false;
-    };
-    
-    /**
-     *
-     * @return {boolean}
-     */
-    this.getSocketObject = function (){
-        return __socketObject || false;
-    };
-
-    /**
-     *
-     * @param data
-     * @returns {Promise}
-     */
-    this.response = function (data){
-        return new Promise(function (){
-            throw new Error('This SocketData is output, use response event');
-        });
-    };
-
-    /**
-     *
-     * @returns {string|boolean}
-     */
-    this.getError = function (){
-        return this.__error || false;
-    };
-
-    /**
-     *
-     * @returns {boolean}
-     */
-    this.isNew = function (){
-        return this.__status === xSocket.Data.STATUS_NEW;
-    };
-
-    /**
-     *
-     * @returns {boolean}
-     */
-    this.isSend = function (){
-        return this.__status === xSocket.Data.STATUS_SEND;
-    };
-
-    /**
-     *
-     * @returns {boolean}
-     */
-    this.isResponse = function (){
-        return this.__status === xSocket.Data.STATUS_RESPONSE;
-    };
-
-    /**
-     *
-     * @returns {Promise}
-     */
-    this.send = function (){
-        return new Promise(function (resolve, reject) {
-            if($this.getDestroy()){
-                return reject(new Error($this.getDestroy()));
-            }
-            if(__isOutput) {
-                $this.emit('send');
-            }
-            $this.on('response', function (data){
-                resolve(data);
-            });
-            $this.on('destroy', function (e){
-                reject(new Error(e));
-            });
-        });
-    };
-
-
-    /**
-     *
-     * @param status
-     * @returns {boolean}
-     */
-    this.setStatus = function (status){
-        if(
-            [xSocket.Data.STATUS_SEND, xSocket.Data.STATUS_RESPONSE].indexOf(status) === -1 ||
-            this.getStatus() === xSocket.Data.STATUS_RESPONSE ||
-            this.getStatus() === status
-        ){
-            return false;
-        }
-        this.__status = status;
-        this.emit('setStatus', status);
-        return true;
-    };
-
-    /**
-     *
-     * @param errorMsg
-     * @returns {boolean}
-     */
-    this.setError = function (errorMsg){
-        if(typeof errorMsg !== 'string'){
-            return false;
-        }
-        this.__error = String(errorMsg);
-        return true;
-    };
-
-    /**
-     *
-     * @param data
-     * @returns {boolean}
-     */
-    this.setResData = function (data){
-        if (typeof data !== 'object') return false;
-        this.__resData = data;
-        return true;
-    };
-
-    /**
-     *
-     * @param msg
-     * @param isSetError
-     * @returns {boolean}
-     */
-    this.destroy = function (msg, isSetError){
-        if(this.getDestroy()){
-            return false;
-        }
-        this.__destroy = String(typeof msg === 'string' && msg.length ? msg :  'destroy');
-        if(isSetError && !this.getError()){
-            this.setError(this.__destroy);
-        }
-        if(this.getStatus() !== xSocket.Data.STATUS_RESPONSE){
-            $this.setStatus(xSocket.Data.STATUS_RESPONSE);
-        }
-        this.emit('destroy', this.__destroy);
-        // Clear all events
-        this.clearAllListerens();
-    };
-
-    /**
-     *
-     */
-    (function (){
-        var ttlDestroy = setTimeout(function (){
-            $this.destroy('ttl', true);
-        }, $this.getTTL());
-        var destroyTimeout = setTimeout(function ($this){
-            $this.destroy('responseTimeout', true);
-        }, $this.getTTL() > DEFAULT_TIMEOUT ? $this.getTTL() : DEFAULT_TIMEOUT, $this);
-
-        $this.once('destroy', function (){
-            try{
-                clearTimeout(destroyTimeout);
-            }catch (e){}
-            try{
-                clearTimeout(ttlDestroy);
-            }catch (e){}
-        });
-
-        $this.on('setStatus', function (status){
-            if(status === xSocket.Data.STATUS_RESPONSE){
-                $this.emit('response', $this.getResData(), $this.getError());
-                $this.destroy('response');
-            }
-        });
-    })();
-
+    var $this = this;
+    this.__isOutput     = !!__isOutput;
+    this.__socketObject = __socketObject || false;
+    this.__ID           = typeof __object.ID === 'string' ? __object.ID : '';
+    this.__type         = typeof __object.type === 'string' ? __object.type : '';
+    this.__data         = typeof __object.data === 'object' ? __object.data : {};
+    this.__ttl          = typeof __object.ttl === 'number' && __object.ttl % 1 === 0 && __object.ttl >= 0 ? __object.ttl : xSocket.Data.DEFAULT_TTL;
+    this.__resData      = {};
+    this.__error        = false;
+    this.__status       = xSocket.Data.STATUS_NEW;
+    this.__destroy      = false;
+    this.__ttlTimeout   = setTimeout(function (){
+        $this.destroy('ttl', true);
+    }, this.__ttl);
 };
+xSocket.Data.prototype = Object.create(xSocket.helpers.EventEmitter.prototype);
+xSocket.Data.prototype.constructor = xSocket.Data;
 xSocket.Data.STATUS_NEW      = 0;
 xSocket.Data.STATUS_SEND     = 1;
 xSocket.Data.STATUS_RESPONSE = 2;
+xSocket.Data.DEFAULT_TTL     = 3000;
+
+/**
+ *
+ * @returns {string}
+ */
+xSocket.Data.prototype.getID = function (){
+    return String(this.__ID);
+};
+
+/**
+ *
+ * @returns {string}
+ */
+xSocket.Data.prototype.getType = function (){
+    return String(this.__type);
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.Data.prototype.getTTL = function (){
+    return this.__ttl;
+};
+
+/**
+ *
+ * @returns {{}}
+ */
+xSocket.Data.prototype.getData = function (){
+    return this.__data || {};
+};
+
+/**
+ *
+ * @param key
+ * @param def
+ * @returns {*}
+ */
+xSocket.Data.prototype.getDataVal = function (key, def){
+    return this.getData()[key] || def;
+};
+
+/**
+ *
+ * @returns {{}}
+ */
+xSocket.Data.prototype.getResData = function (){
+    return this.__resData || {};
+};
+
+/**
+ *
+ * @param key
+ * @param def
+ * @returns {*}
+ */
+xSocket.Data.prototype.getResDataVal = function (key, def){
+    return this.getResData()[key] || def;
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.Data.prototype.getStatus = function (){
+    return this.__status;
+};
+
+/**
+ *
+ * @returns {boolean|string}
+ */
+xSocket.Data.prototype.getDestroy = function (){
+    return this.__destroy || false;
+};
+
+/**
+ *
+ * @returns {xSocket.xSocketObject|boolean}
+ */
+xSocket.Data.prototype.getSocketObject = function (){
+    return this.__socketObject;
+};
+
+/**
+ *
+ * @returns {string|boolean}
+ */
+xSocket.Data.prototype.getError = function (){
+    return this.__error || false;
+};
+
+/**
+ *
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.isNew = function (){
+    return this.__status === xSocket.Data.STATUS_NEW;
+};
+
+/**
+ *
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.isSend = function (){
+    return this.__status === xSocket.Data.STATUS_SEND;
+};
+
+/**
+ *
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.isResponse = function (){
+    return this.__status === xSocket.Data.STATUS_RESPONSE;
+};
+
+/**
+ *
+ * @param data
+ * @param error
+ * @returns {Promise<xSocket.Data>}
+ */
+xSocket.Data.prototype.response = function (data, error){
+    var $this = this;
+    var promise = new Promise(function (resolve, reject){
+        if($this.__isOutput){
+            return reject(new Error('Output data'));
+        }
+        if($this.__destroy || $this.isResponse() || !$this.__ttl){
+            return reject(new Error('destroy'));
+        }
+        $this.setResData(data);
+        $this.setError(error);
+        $this.once('response', function (){
+            resolve($this);
+        });
+        $this.once('destroy', function (msg){
+            reject(new Error(msg));
+        });
+        $this.__socketObject.getWsReady().then(function (ws){
+            if(ws.sendObject([
+                xSocket.xSocketObject.MSG_SD_UPDATE,
+                Number($this.__ID),
+                $this.getResData(),
+                $this.getError()
+            ])){
+                $this.setStatus(xSocket.Data.STATUS_RESPONSE);
+            }else{
+                $this.destroy('Send failed');
+            }
+        }).catch(function (e){
+            $this.destroy(e.message || 'Send failed');
+        });
+    });
+    promise.catch(function (){});
+    return promise;
+};
+
+/**
+ *
+ * @param status
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.setStatus = function (status){
+    if(
+        (status !== xSocket.Data.STATUS_SEND && status !== xSocket.Data.STATUS_RESPONSE) ||
+        this.__status === xSocket.Data.STATUS_RESPONSE ||
+        this.__status === status
+    ){
+        return false;
+    }
+    this.__status = status;
+    this.emit('setStatus', status);
+    if(status === xSocket.Data.STATUS_RESPONSE){
+        this.emit('response', this.getResData(), this.getError());
+        this.destroy('response');
+    }
+    return true;
+};
+
+/**
+ *
+ * @param errorMsg
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.setError = function (errorMsg){
+    if(typeof errorMsg !== 'string'){
+        return false;
+    }
+    this.__error = errorMsg;
+    return true;
+};
+
+/**
+ *
+ * @param data
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.setResData = function (data){
+    if(typeof data !== 'object'){
+        return false;
+    }
+    this.__resData = data;
+    return true;
+};
+
+/**
+ *
+ * @param msg
+ * @param isSetError
+ * @returns {boolean}
+ */
+xSocket.Data.prototype.destroy = function (msg, isSetError){
+    if(this.__destroy){
+        return false;
+    }
+    this.__destroy = typeof msg === 'string' && msg.length ? msg : 'destroy';
+    clearTimeout(this.__ttlTimeout);
+    if(isSetError && !this.__error){
+        this.setError(this.__destroy);
+    }
+    if(this.__status !== xSocket.Data.STATUS_RESPONSE){
+        this.setStatus(xSocket.Data.STATUS_RESPONSE);
+    }
+    this.emit('destroy', this.__destroy);
+    this.clearAllListerens();
+    return true;
+};

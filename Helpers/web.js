@@ -4,11 +4,15 @@
  * @author Vadim Pride (pride.mk.ua@gmail.com)
  * @link https://github.com/VadimPride
  */
-var xSocket = function xSocket(){
-    xSocket.Client.apply(this, arguments);
+var xSocket = function xSocket(serverUrl, query, settings){
+    return new xSocket.Client(serverUrl, query, settings);
 };
-xSocket.window = window || false;
-xSocket.WebSocket = WebSocket || false;
+xSocket.window = typeof window === 'object' ? window : false;
+xSocket.WebSocket = typeof WebSocket === 'function' ? WebSocket : false;
 xSocket.process = false;
 
-window.xSocket = xSocket;
+if(typeof module === 'object' && module.exports){
+    module.exports = xSocket;
+}else{
+    window.xSocket = xSocket;
+}

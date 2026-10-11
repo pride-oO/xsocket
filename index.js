@@ -13,3 +13,5 @@ require('./Client');
 require('./Server');
 
 module.exports = global.xSocket;
+module.exports.Server = global.xSocket.Server;
+module.exports.Client = global.xSocket.Client;

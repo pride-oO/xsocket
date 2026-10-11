@@ -2,404 +2,367 @@
  *
  * @param __ServerConfigure
  * @param __req
+ * @constructor
  */
-xSocket.xSocketObject = function (__ServerConfigure, __req){
-
-    // Extend
+xSocket.xSocketObject = function xSocketObject(__ServerConfigure, __req){
     xSocket.helpers.EventEmitter.call(this);
     this.setMaxListeners(0);
 
-    var $this             = this;
-    var __ws              = undefined;
-    var __ID              = '';
-    var __sign            = '';
-    var __destroy         = undefined;
-    var __isNewConnection = true;
-    var __socketDataList      = {};
-    var __query = {};
+    this.__serverConfigure = __ServerConfigure;
+    this.__req             = __req;
+    this.__ws              = undefined;
+    this.__ID              = '';
+    this.__sign            = '';
+    this.__destroy         = undefined;
+    this.__isNewConnection = true;
+    this.__socketDataMap   = {};
+    this.__socketDataInc   = 0;
+    this.__query           = {};
 
-    /**
-     *
-     * @returns {string}
-     */
-    this.getID = function (){
-        return __ID || '';
-    };
+    this.on('destroy', this.__onDestroy);
+    this.on('ws|disconnect', this.__onWsDisconnect);
+    this.on('ws|connect', this.__onWsConnect);
+    this.on('ws|message', this.__onWsMessage);
+};
+xSocket.xSocketObject.prototype = Object.create(xSocket.helpers.EventEmitter.prototype);
+xSocket.xSocketObject.prototype.constructor = xSocket.xSocketObject;
+xSocket.xSocketObject.MSG_SO_UPDATE = 0;
+xSocket.xSocketObject.MSG_SD_CREATE = 1;
+xSocket.xSocketObject.MSG_SD_UPDATE = 2;
 
-    /**
-     *
-     * @returns {string}
-     */
-    this.getSign = function (){
-        return __sign || '';
-    };
+/**
+ *
+ * @returns {string}
+ */
+xSocket.xSocketObject.prototype.getID = function (){
+    return this.__ID || '';
+};
 
-    /**
-     *
-     * @returns {*|{}}
-     */
-    this.getReq = function (){
-        return __req || {};
-    };
+/**
+ *
+ * @returns {string}
+ */
+xSocket.xSocketObject.prototype.getSign = function (){
+    return this.__sign || '';
+};
 
-    /**
-     *
-     * @returns {*}
-     */
-    this.getQuery = function (){
-        return typeof __query === 'object' ? __query : {};
-    }
+/**
+ *
+ * @returns {*|{}}
+ */
+xSocket.xSocketObject.prototype.getReq = function (){
+    return this.__req || {};
+};
 
-    /**
-     *
-     * @param key
-     * @param def
-     * @returns {*}
-     */
-    this.getQueryVal = function (key, def){
-        return this.getQuery()[key] || def;
-    };
+/**
+ *
+ * @returns {*}
+ */
+xSocket.xSocketObject.prototype.getQuery = function (){
+    return typeof this.__query === 'object' ? this.__query : {};
+};
 
-    /**
-     *
-     * @returns {*|{}}
-     */
-    this.getReqHeaders = function (){
-        return this.getReq()['headers'] || {}
-    };
+/**
+ *
+ * @param key
+ * @param def
+ * @returns {*}
+ */
+xSocket.xSocketObject.prototype.getQueryVal = function (key, def){
+    return this.getQuery()[key] || def;
+};
 
-    /**
-     *
-     * @returns {*|string}
-     */
-    this.getOrigin = function (){
-        return this.getReqHeaders()['origin'] || 'unknown';
-    };
+/**
+ *
+ * @returns {*|{}}
+ */
+xSocket.xSocketObject.prototype.getReqHeaders = function (){
+    return this.getReq()['headers'] || {};
+};
 
-    /**
-     *
-     * @returns {string}
-     */
-    this.getIP = function (){
-        return String((this.getReq()['connection'] || {})['remoteAddress'] || 'unknown');
-    };
+/**
+ *
+ * @returns {*|string}
+ */
+xSocket.xSocketObject.prototype.getOrigin = function (){
+    return this.getReqHeaders()['origin'] || 'unknown';
+};
 
+/**
+ *
+ * @returns {string}
+ */
+xSocket.xSocketObject.prototype.getIP = function (){
+    return String((this.getReq()['connection'] || {})['remoteAddress'] || 'unknown');
+};
 
-    /**
-     *
-     * @returns {{}}
-     */
-    this.getSocketDataList = function (){
-        return __socketDataList;
-    };
+/**
+ *
+ * @returns {{}}
+ */
+xSocket.xSocketObject.prototype.getSocketDataList = function (){
+    return this.__socketDataMap;
+};
 
-    /**
-     *
-     * @param ID
-     * @returns {*|boolean}
-     */
-    this.getSocketData = function (ID){
-        return this.getSocketDataList()[ID] || false;
-    };
+/**
+ *
+ * @param ID
+ * @returns {xSocket.Data|boolean}
+ */
+xSocket.xSocketObject.prototype.getSocketData = function (ID){
+    return this.__socketDataMap[ID] || false;
+};
 
-    /**
-     *
-     * @returns {boolean}
-     */
-    this.isConnection = function (){
-        return typeof __ws == 'object' ? __ws.isConnection() : false;
-    };
+/**
+ *
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.isConnection = function (){
+    return typeof this.__ws === 'object' ? this.__ws.isConnection() : false;
+};
 
-    /**
-     *
-     * @returns {any|boolean}
-     */
-    this.getConnection = function (){
-        return this.isConnection() ? __ws : false;
-    };
+/**
+ *
+ * @returns {any|boolean}
+ */
+xSocket.xSocketObject.prototype.getConnection = function (){
+    return this.isConnection() ? this.__ws : false;
+};
 
-    /**
-     *
-     * @returns {any|boolean}
-     */
-    this.getDestroy = function (){
-        return __destroy || false;
-    };
+/**
+ *
+ * @returns {string|boolean}
+ */
+xSocket.xSocketObject.prototype.getDestroy = function (){
+    return this.__destroy || false;
+};
 
-    /**
-     *
-     * @returns {boolean}
-     */
-    this.isDestroy = function (){
-        return !!this.getDestroy();
-    }
+/**
+ *
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.isDestroy = function (){
+    return !!this.getDestroy();
+};
 
-    /**
-     *
-     * @returns {Promise}
-     */
-    this.getWsReady = function (){
-        return new Promise(function(resolve, reject) {
+/**
+ *
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.isServer = function (){
+    return !!this.__serverConfigure;
+};
+
+/**
+ *
+ * @returns {Promise}
+ */
+xSocket.xSocketObject.prototype.getWsReady = function (){
+    var $this = this;
+    return new Promise(function (resolve, reject){
+        if($this.getConnection()){
+            return resolve($this.getConnection());
+        }
+        var destroyHandler = function (){
+            $this.off('connect', connectHandler);
+            reject(new Error('destroy'));
+        };
+        var connectHandler = function (){
+            $this.off('destroy', destroyHandler);
             if($this.getConnection()){
-                return resolve($this.getConnection());
-            }
-            var destroyHandler = function(){
-                reject(new Error('destroy'));
-            };
-            $this.on('connect', function(){
-                if($this.getConnection()){
-                    resolve($this.getConnection());
-                }else{
-                    reject(new Error('Failed connection #10fg42w'))
-                }
-                $this.off('destroy', destroyHandler);
-            });
-            $this.once('destroy', destroyHandler);
-        });
-    };
-
-    /**
-     *
-     * @param type
-     * @param data
-     * @param ttl
-     * @returns {Promise<xSocket.Data>}
-     */
-    this.send = function (type, data, ttl) {
-        var sendPromise = new Promise(function (resolve, reject) {
-            var socketData = new xSocket.Data(true, {
-                'ID' : xSocket.helpers.getUID(),
-                'type' : type,
-                'data' : data,
-                'ttl' : ttl
-            }, $this);
-            if(socketData.getTTL()){
-                __socketDataList[socketData.getID()] = socketData;
-                socketData.on('destroy', function (){
-                    delete __socketDataList[socketData.getID()];
-                });
-            }
-            resolve(socketData);
-            $this.getWsReady().then(function (ws){
-                if(!ws.sendObject(['SD|create', {
-                        'ID' : socketData.getID(),
-                        'type' : socketData.getType(),
-                        'ttl' : socketData.getTTL(),
-                        'data' : socketData.getData()
-                }])){
-                    return socketData.destroy('Failed send #54te8ta65');
-                }
-                socketData.setStatus(socketData.getTTL() ? xSocket.Data.STATUS_SEND : xSocket.Data.STATUS_RESPONSE);
-            }).catch(function (e){
-                socketData.destroy(e.message || 'Failed send #2e4uxDql');
-            });
-        });
-        sendPromise.catch(function (){});
-        return sendPromise;
-    };
-
-    /**
-     *
-     * @param type
-     * @param data
-     * @param ttl
-     * @returns {Promise<xSocket.Data>}
-     */
-    this.sendReadyResponse = function (type, data, ttl) {
-        return new Promise(function (resolve, reject){
-            $this.send(type, data, ttl).then(function(xSocketData) {
-                if(xSocketData.isResponse() || xSocketData.getDestroy()){
-                    if(xSocketData.getError()){
-                        return reject(new Error(xSocketData.getError()));
-                    }
-                    return resolve(xSocketData);
-                }
-
-                xSocketData.on('response', function (data, err){
-                    if(err){
-                        return reject(new Error(err));
-                    }
-                    resolve(xSocketData);
-                });
-
-            }).catch(function (e){
-                reject(e);
-            })
-        });
-    };
-
-    /**
-     *
-     * * @returns {Promise<xSocket.Data>}
-     */
-    this.sendReady = this.sendReadyResponse;
-
-    /**
-     *
-     * @param msg
-     * @returns {boolean}
-     */
-    this.destroy = function (msg){
-        if($this.isDestroy()){
-            return false;
-        }
-        __destroy = String(msg || 'destroy');
-        this.disconnect(__destroy);
-        this.emit('destroy', this, __destroy);
-        // Clear all events
-        this.clearAllListerens();
-        return true
-    };
-
-    /**
-     *
-     * @param msg
-     * @returns {boolean}
-     */
-    this.disconnect = function (msg){
-        var ws = this.getConnection();
-        if(!ws || !this.isConnection()){
-            return false;
-        }
-        return ws.closeConnection(msg);
-    };
-
-    /**
-     *
-     * @param ws
-     * @returns {boolean}
-     */
-    this.update = function (ws){
-        if(typeof ws !== 'object' || typeof ws.isConnection !== 'function' || typeof ws.query !== 'object'){
-            return false;
-        }
-        if(!ws.isConnection() || __destroy){
-            return false;
-        }
-        if(__ID !== ws.query['xSOId'] || __sign !== ws.query['xSOSign']){
-            __ID   = ws.query['xSOId'];
-            __sign = ws.query['xSOSign'];
-            __query = Object(ws['query'] || {});
-            if(__query['xSOId']) delete  __query['xSOId'];
-            if(__query['xSOSign']) delete  __query['xSOSign'];
-            $this.emit('update', $this);
-        }
-        if($this.isServer()){
-            ws.sendObject(['SO|update', {
-                'xSOId': $this.getID(),
-                'xSOSign' : $this.getSign(),
-                'configure' : typeof __ServerConfigure === 'object' ? __ServerConfigure : {}
-            }]);
-        }
-        __ws = ws;
-        ws.SocketObject = $this;
-        $this.emit('ws|connect', ws);
-        return true;
-    };
-
-    /**
-     *
-     * @returns {boolean}
-     */
-    this.isServer = function (){
-        return !!__ServerConfigure;
-    };
-
-    /**
-     *
-     */
-    (function (){
-
-        $this.on('destroy', function (){
-            var SDlist = $this.getSocketDataList();
-            for(var i in SDlist){
-                try{
-                    SDlist[i].destroy('SocketObject|destroy');
-                }catch (e){}
-            }
-        });
-        $this.on('update', function (){
-            if(!$this.isServer()){
-
-            }
-        });
-        $this.on('ws|disconnect', function (msg){
-            msg = typeof msg === 'string' ? msg : 'unknown';
-            $this.emit('disconnect', $this, msg);
-            if(msg === 'end'){
-                $this.destroy('end');
-            }
-        });
-        $this.on('ws|connect', function (){
-            $this.emit('connect', $this);
-            if(!__isNewConnection){
-                $this.emit('reconnect', $this);
+                resolve($this.getConnection());
             }else{
-                __isNewConnection = false;
+                reject(new Error('Connection failed'));
             }
-        });
-        $this.on('ws|message', function (type, data){
-            if(
-                typeof type !== 'string' ||
-                !type.length ||
-                typeof data !== 'object' ||
-                typeof data['ID'] !== 'string' ||
-                !xSocket.helpers.checkUID(data['ID']) ||
-                !data['ID'].length ||
-                typeof data['data'] !== 'object'
-            ){
-                return;
-            }
-            var socketData;
-            if(type === 'SD|create'){
-                if(typeof data['type'] == 'string' && data['type'].length && !$this.getSocketData(data['ID'])){
-                    socketData = new xSocket.Data(false, data, $this);
-                    socketData.response = function (data, error){
-                        var p = new Promise(function (resolve, reject){
-                            if(socketData.getDestroy() || socketData.isResponse() || !socketData.getTTL()){
-                                return reject('destroy');
-                            }
-                            socketData.setResData(data);
-                            socketData.setError(error);
-                            socketData.on('destroy', function (msg){
-                                reject(new Error(msg || 'Error #sk2jrqF'))
-                            });
-                            socketData.on('response', function (){
-                                resolve(socketData);
-                            });
-                            $this.getWsReady().then(function (ws){
-                                if(ws.sendObject(['SD|update', {
-                                        'ID' : socketData.getID(),
-                                        'data' : socketData.getResData(),
-                                        'error' : socketData.getError()
-                                    }
-                                ])){
-                                    socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
-                                }else{
-                                    socketData.destroy('Error #e318Js');
-                                }
-                            }).catch(function (e){
-                                socketData.destroy(e.message || 'Error #er8avhT');
-                            });
-                        });
-                        p.catch(function(){});
-                        return p;
-                    };
-                    $this.emit('data', socketData);
-                    $this.emit('data|'+socketData.getType(), socketData);
-                    if(!socketData.getTTL()){
-                        socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
-                    }
-                }
-            }else if(type === 'SD|update'){
-                socketData = $this.getSocketData(data['ID']);
-                if(socketData){
-                    socketData.setResData(data['data']);
-                    socketData.setError(data['error'] || false);
-                    socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
-                }
-            }
-        });
+        };
+        $this.once('connect', connectHandler);
+        $this.once('destroy', destroyHandler);
+    });
+};
 
-    })();
+/**
+ *
+ * @param type
+ * @param data
+ * @param ttl
+ * @returns {Promise<xSocket.Data>}
+ */
+xSocket.xSocketObject.prototype.send = function (type, data, ttl){
+    var $this = this;
+    var socketData = new xSocket.Data(true, {
+        'ID' : String(++this.__socketDataInc),
+        'type' : type,
+        'data' : data,
+        'ttl' : ttl
+    }, this);
+    if(socketData.getTTL()){
+        this.__socketDataMap[socketData.getID()] = socketData;
+        socketData.once('destroy', function (){
+            delete $this.__socketDataMap[socketData.getID()];
+        });
+    }
+    this.getWsReady().then(function (ws){
+        if(!ws.sendObject([
+            xSocket.xSocketObject.MSG_SD_CREATE,
+            Number(socketData.getID()),
+            socketData.getType(),
+            socketData.getTTL(),
+            socketData.getData()
+        ])){
+            return socketData.destroy('Send failed');
+        }
+        socketData.setStatus(socketData.getTTL() ? xSocket.Data.STATUS_SEND : xSocket.Data.STATUS_RESPONSE);
+    }).catch(function (e){
+        socketData.destroy(e.message || 'Send failed');
+    });
+    return Promise.resolve(socketData);
+};
+
+/**
+ *
+ * @param type
+ * @param data
+ * @param ttl
+ * @returns {Promise<xSocket.Data>}
+ */
+xSocket.xSocketObject.prototype.sendReadyResponse = function (type, data, ttl){
+    return this.send(type, data, ttl).then(function (socketData){
+        return new Promise(function (resolve, reject){
+            var responseHandler = function (){
+                if(socketData.getError()){
+                    return reject(new Error(socketData.getError()));
+                }
+                resolve(socketData);
+            };
+            if(socketData.isResponse() || socketData.getDestroy()){
+                return responseHandler();
+            }
+            socketData.once('response', responseHandler);
+        });
+    });
+};
+
+/**
+ *
+ * @returns {Promise<xSocket.Data>}
+ */
+xSocket.xSocketObject.prototype.sendReady = xSocket.xSocketObject.prototype.sendReadyResponse;
+
+/**
+ *
+ * @param msg
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.destroy = function (msg){
+    if(this.isDestroy()){
+        return false;
+    }
+    this.__destroy = String(msg || 'destroy');
+    this.disconnect(this.__destroy);
+    this.emit('destroy', this, this.__destroy);
+    this.clearAllListerens();
+    return true;
+};
+
+/**
+ *
+ * @param msg
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.disconnect = function (msg){
+    var ws = this.getConnection();
+    if(!ws){
+        return false;
+    }
+    return ws.closeConnection(msg);
+};
+
+/**
+ *
+ * @param ws
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.update = function (ws){
+    if(typeof ws !== 'object' || typeof ws.isConnection !== 'function' || typeof ws.query !== 'object'){
+        return false;
+    }
+    if(!ws.isConnection() || this.__destroy){
+        return false;
+    }
+    if(this.__ID !== ws.query['xSOId'] || this.__sign !== ws.query['xSOSign']){
+        this.__ID   = ws.query['xSOId'];
+        this.__sign = ws.query['xSOSign'];
+        this.__query = Object(ws['query'] || {});
+        delete this.__query['xSOId'];
+        delete this.__query['xSOSign'];
+        delete this.__query['xV'];
+        this.emit('update', this);
+    }
+    if(this.isServer()){
+        ws.sendObject([
+            xSocket.xSocketObject.MSG_SO_UPDATE,
+            this.getID(),
+            this.getSign(),
+            typeof this.__serverConfigure === 'object' ? this.__serverConfigure : {},
+            xSocket.VERSION
+        ]);
+    }
+    this.__ws = ws;
+    ws.SocketObject = this;
+    this.emit('ws|connect', ws);
+    return true;
+};
+
+xSocket.xSocketObject.prototype.__onDestroy = function (){
+    for(var ID in this.__socketDataMap){
+        this.__socketDataMap[ID].destroy('SocketObject|destroy');
+    }
+};
+
+xSocket.xSocketObject.prototype.__onWsDisconnect = function (msg){
+    msg = typeof msg === 'string' ? msg : 'unknown';
+    this.emit('disconnect', this, msg);
+    if(msg === 'end'){
+        this.destroy('end');
+    }
+};
+
+xSocket.xSocketObject.prototype.__onWsConnect = function (){
+    this.emit('connect', this);
+    if(!this.__isNewConnection){
+        this.emit('reconnect', this);
+    }else{
+        this.__isNewConnection = false;
+    }
+};
+
+xSocket.xSocketObject.prototype.__onWsMessage = function (body){
+    var ID = body[1];
+    if(typeof ID !== 'number' || ID % 1 !== 0 || ID < 1){
+        return;
+    }
+    var socketData;
+    if(body[0] === xSocket.xSocketObject.MSG_SD_CREATE){
+        if(typeof body[2] !== 'string' || !body[2].length || typeof body[4] !== 'object'){
+            return;
+        }
+        socketData = new xSocket.Data(false, {
+            'ID' : String(ID),
+            'type' : body[2],
+            'ttl' : body[3],
+            'data' : body[4]
+        }, this);
+        this.emit('data', socketData);
+        this.emit('data|' + socketData.getType(), socketData);
+        if(!socketData.getTTL()){
+            socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
+        }
+    }else if(body[0] === xSocket.xSocketObject.MSG_SD_UPDATE){
+        socketData = this.getSocketData(String(ID));
+        if(socketData){
+            socketData.setResData(body[2]);
+            socketData.setError(body[3] || false);
+            socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
+        }
+    }
 };

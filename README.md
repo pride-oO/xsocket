@@ -1,5 +1,19 @@
 # xSocket
 
+WebSocket client and server for Node.js and the browser.
+
+- Request-response: every message can wait for a reply (`sendReady`) with TTL
+- Automatic reconnect and session recovery within `socketObjectTimeout`
+- Auth hook on the server (`use('auth')`)
+- `ws://` or `wss://` depending on certificate, optional `perMessageDeflate` compression
+- Binary messages: `ArrayBuffer`, `TypedArray` or `Buffer` as data, received as `Uint8Array` (`Buffer` in Node.js)
+- Version check: client and server warn in console if versions differ
+- Compact JSON protocol
+
+```
+npm install xsocket
+```
+
 ## Server:
 ```javascript
 // Init
@@ -8,6 +22,7 @@ const xSocket = require('xsocket');
 const xServer = new xSocket.Server({
     'port' : 8752, // (Not necessary) Port listen (Default: 443 with certificate, 80 without)
     'socketObjectTimeout' : 30000, // (Not necessary) Allows the user to reconnect within 30 seconds (Default: 0)
+    'perMessageDeflate' : true, // (Not necessary) Compress messages larger than 1KB, or ws perMessageDeflate options object (Default: false)
     'https' : { // (Not necessary) Without certificate server uses ws:// instead of wss://
         "cert" : "<path>/cert.pem",
         "key" : "<path>/private.key"
@@ -93,7 +108,7 @@ xServer.listen().then(() => {
 
 ```javascript
 // Init 
-var xSocket = require('xsocket'); // OR web <script type="text/javascript" src="./xSocket.min.js"></script>
+var xSocket = require('xsocket'); // OR import xSocket from 'xsocket' (bundlers use browser build) OR <script src="./xSocket.min.js"></script>
 
 var xClient = new xSocket(['wss://server_domain.com:8752'], {'name' : 'Bob'}); // Or xSocket.Client(), ws:// if server without certificate
 
@@ -125,6 +140,10 @@ xClient.on('connect', function (xSocketObject) {
     }).catch(function (e){
         console.log('Message not sended, info:', e.message);
     });
+    // Binary message, response can be binary too
+    // xSocketObject.sendReady('file', new Uint8Array([1, 2, 3])).then(function (xSocketData){
+    //     console.log(xSocketData.getResData()); // Uint8Array or object
+    // });
     // OR
     //xSocketObject.sendReady(
     //    'helloServer', // Name message

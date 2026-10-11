@@ -8,6 +8,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
     var __urlList = [];
     var __ws;
     var __SocketObject = false;
+    var __isVersionWarned = false;
 
 
     /**
@@ -44,11 +45,11 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
     this.getSocketObjectReady = function (){
         return new Promise(function (resolve) {
             if($this.getSocketObject()) return resolve($this.getSocketObject());
-            $this.on('connect', function (socketObject) {
+            $this.once('connect', function (socketObject) {
                 resolve(socketObject);
             });
         });
-    }
+    };
 
     /**
      *
@@ -68,6 +69,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
             var url = __urlList[xSocket.helpers.getRandInt(0, __urlList.length - 1)];
             url += (url.indexOf('?') === -1 ? '?' : '&');
 
+            __query['xV'] = xSocket.VERSION;
             if(__SocketObject && __SocketObject.getID().length && __SocketObject.getSign().length){
                 __query['xSOId'] = String(__SocketObject.getID());
                 __query['xSOSign'] = String(__SocketObject.getSign());
@@ -82,6 +84,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
             }
 
             var ws = new xSocket.WebSocket(url);
+            ws.binaryType = 'arraybuffer';
             ws.closeConnection = function (msg){
                 if(ws.isConnection()){
                     try{
@@ -108,7 +111,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
             ws.sendObject = function(object) {
                 try {
                     if(ws.isConnection()){
-                        ws.send(JSON.stringify(object));
+                        ws.send(xSocket.helpers.encodeMessage(object));
                         return true;
                     }
                 }catch (e){}
@@ -130,22 +133,26 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
             }
             ws.onmessage = function (e){
                 msgInc++;
-                var msg = String(e.data || '');
-                var body = '';
-                if(msg === 'ping'){
+                if(e.data === 'ping'){
                     return ws.sendMessage('pong');
                 }
                 try {
-                    body = JSON.parse(msg);
-                    if (typeof body !== 'object' || typeof body[0] !== 'string' || typeof body[1] !== 'object') {
+                    var body = xSocket.helpers.decodeMessage(e.data);
+                    if (!body) {
                         return;
                     }
-                    var type = body[0];
-                    var data = body[1];
-                    if (type === 'SO|update') {
-                        ws.query = data;
+                    if (body[0] === xSocket.xSocketObject.MSG_SO_UPDATE) {
+                        if(body[4] !== xSocket.VERSION && !__isVersionWarned){
+                            __isVersionWarned = true;
+                            console.warn('[warn|xSocket]', 'Version mismatch', 'client ' + xSocket.VERSION + ', server ' + (body[4] || 'unknown'));
+                        }
+                        ws.query = {
+                            'xSOId' : String(body[1]),
+                            'xSOSign' : String(body[2]),
+                            'configure' : typeof body[3] === 'object' ? body[3] : {}
+                        };
                         if(__SocketObject){
-                            if(data['xSOId'] === __SocketObject.getID() && data['xSOSign'] === __SocketObject.getSign() && __SocketObject.update(ws)){
+                            if(ws.query['xSOId'] === __SocketObject.getID() && ws.query['xSOSign'] === __SocketObject.getSign() && __SocketObject.update(ws)){
                                 return false;
                             }
                             __SocketObject.destroy('update');
@@ -174,7 +181,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                         }
                     }else{
                         if(__SocketObject){
-                            __SocketObject.emit('ws|message', body[0], body[1]);
+                            __SocketObject.emit('ws|message', body);
                         }
                     }
                 }catch (e){}
@@ -198,41 +205,14 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
 
     /**
      *
-     * @returns {Promise<xSocket.Data>}
-     */
-    this.send = function (){
-        var ar = arguments;
-        return new Promise(function (resolve, reject){
-            $this.getSocketObjectReady().then(function (){
-                __SocketObject.send.apply(this, ar).then(function (e){
-                    resolve(e);
-                }).catch(function (e){
-                    reject(e);
-                });
-            }).catch(function (e){
-                reject(e);
-            });
-        });
-    };
-
-    /**
-     *
      * @param type
      * @param data
      * @param ttl
      * @returns {Promise<xSocket.Data>}
      */
-    this.sendReadyResponse = function (type, data, ttl){
-        return new Promise(function (resolve, reject){
-            $this.getSocketObjectReady().then(function (socketObject){
-                socketObject.sendReadyResponse(type, data, ttl).then(function (e){
-                    resolve(e);
-                }).catch(function (e){
-                    reject(e);
-                });
-            }).catch(function (e){
-                reject(e);
-            });
+    this.send = function (type, data, ttl){
+        return $this.getSocketObjectReady().then(function (socketObject){
+            return socketObject.send(type, data, ttl);
         });
     };
 
@@ -244,18 +224,16 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
      * @returns {Promise<xSocket.Data>}
      */
     this.sendReady = function (type, data, ttl){
-        return new Promise(function (resolve, reject){
-            $this.getSocketObjectReady().then(function (socketObject){
-                socketObject.sendReady(type, data, ttl).then(function (e){
-                    resolve(e);
-                }).catch(function (e){
-                    reject(e);
-                });
-            }).catch(function (e){
-                reject(e);
-            });
+        return $this.getSocketObjectReady().then(function (socketObject){
+            return socketObject.sendReady(type, data, ttl);
         });
-    }
+    };
+
+    /**
+     *
+     * @returns {Promise<xSocket.Data>}
+     */
+    this.sendReadyResponse = this.sendReady;
 
     /**
      *
@@ -344,3 +322,5 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
     })();
 
 };
+xSocket.Client.prototype = Object.create(xSocket.helpers.EventEmitter.prototype);
+xSocket.Client.prototype.constructor = xSocket.Client;
