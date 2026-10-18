@@ -146,6 +146,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                             __isVersionWarned = true;
                             console.warn('[warn|xSocket]', 'Version mismatch', 'client ' + xSocket.VERSION + ', server ' + (body[4] || 'unknown'));
                         }
+                        ws.timeOffset = typeof body[5] === 'number' ? body[5] - Date.now() : 0;
                         ws.query = {
                             'xSOId' : String(body[1]),
                             'xSOSign' : String(body[2]),

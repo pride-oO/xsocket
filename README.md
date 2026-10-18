@@ -3,6 +3,8 @@
 WebSocket client and server for Node.js and the browser.
 
 - Request-response: every message can wait for a reply (`sendReady`) with TTL
+- TTL counts from the send time on both sides, client clock is synchronized with the server
+- `require` and `import` (ESM) support
 - Automatic reconnect and session recovery within `socketObjectTimeout`
 - Auth hook on the server (`use('auth')`)
 - `ws://` or `wss://` depending on certificate, optional `perMessageDeflate` compression
@@ -17,7 +19,7 @@ npm install xsocket
 ## Server:
 ```javascript
 // Init
-const xSocket = require('xsocket');
+const xSocket = require('xsocket'); // OR import xSocket, { Server } from 'xsocket'
 
 const xServer = new xSocket.Server({
     'port' : 8752, // (Not necessary) Port listen (Default: 443 with certificate, 80 without)
@@ -108,7 +110,7 @@ xServer.listen().then(() => {
 
 ```javascript
 // Init 
-var xSocket = require('xsocket'); // OR import xSocket from 'xsocket' (bundlers use browser build) OR <script src="./xSocket.min.js"></script>
+var xSocket = require('xsocket'); // OR import xSocket from 'xsocket' (bundlers use browser build) OR import xSocket from './xSocket.mjs' OR <script src="./xSocket.min.js"></script>
 
 var xClient = new xSocket(['wss://server_domain.com:8752'], {'name' : 'Bob'}); // Or xSocket.Client(), ws:// if server without certificate
 

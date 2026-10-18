@@ -1,13 +1,13 @@
 {
   "name": "xsocket",
   "description": "WebSocket client and server for Node.js and the browser: request-response messages with TTL, auth, automatic reconnect and session recovery",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "author": "pr!de",
   "license": "MIT",
-  "homepage": "https://github.com/VadimPride/xsocket",
+  "homepage": "https://github.com/pride-oO/xsocket",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/VadimPride/xsocket"
+    "url": "git+https://github.com/pride-oO/xsocket"
   },
   "keywords": [
     "socket",
@@ -26,11 +26,16 @@
   "browser": "xSocket.js",
   "exports": {
     ".": {
-      "browser": "./xSocket.js",
+      "browser": {
+        "import": "./xSocket.mjs",
+        "default": "./xSocket.js"
+      },
+      "import": "./index.mjs",
       "default": "./index.js"
     },
     "./xSocket.js": "./xSocket.js",
     "./xSocket.min.js": "./xSocket.min.js",
+    "./xSocket.mjs": "./xSocket.mjs",
     "./package.json": "./package.json"
   },
   "engines": {

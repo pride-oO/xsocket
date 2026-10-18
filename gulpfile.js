@@ -12,12 +12,22 @@ const FileWatchArray = [
     './Client/index.js',
 ];
 
-gulp.task('default', function() {
+gulp.task('version', function(done) {
     if(fs.readFileSync('./Helpers/index.js', 'utf8').indexOf("xSocket.VERSION = '" + version + "'") === -1){
         throw new Error('xSocket.VERSION mismatch');
     }
+    done();
+});
+
+gulp.task('build', function() {
     return gulp.src(FileWatchArray).pipe(concat('xSocket.js')).pipe(gulp.dest('./')).pipe(concat('xSocket.min.js')).pipe(uglify()).pipe(gulp.dest('./'));
 });
+
+gulp.task('esm', function() {
+    return gulp.src(FileWatchArray.concat('./Helpers/esm.js')).pipe(concat('xSocket.mjs')).pipe(gulp.dest('./'));
+});
+
+gulp.task('default', gulp.series('version', 'build', 'esm'));
 
 gulp.task('watch', function() {
     gulp.watch(FileWatchArray, gulp.series('default'));

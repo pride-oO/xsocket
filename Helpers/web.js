@@ -13,6 +13,6 @@ xSocket.process = false;
 
 if(typeof module === 'object' && module.exports){
     module.exports = xSocket;
-}else{
+}else if(xSocket.window){
     window.xSocket = xSocket;
 }

@@ -17,13 +17,15 @@ xSocket.Data = function xSocketData(__isOutput, __object, __socketObject){
     this.__type         = typeof __object.type === 'string' ? __object.type : '';
     this.__data         = typeof __object.data === 'object' ? __object.data : {};
     this.__ttl          = typeof __object.ttl === 'number' && __object.ttl % 1 === 0 && __object.ttl >= 0 ? __object.ttl : xSocket.Data.DEFAULT_TTL;
+    var now             = this.__socketObject ? this.__socketObject.getTime() : Date.now();
+    this.__time         = typeof __object.time === 'number' && __object.time > 0 ? __object.time : now;
     this.__resData      = {};
     this.__error        = false;
     this.__status       = xSocket.Data.STATUS_NEW;
     this.__destroy      = false;
     this.__ttlTimeout   = setTimeout(function (){
         $this.destroy('ttl', true);
-    }, this.__ttl);
+    }, Math.max(0, Math.min(this.__ttl, this.__ttl - (now - this.__time))));
 };
 xSocket.Data.prototype = Object.create(xSocket.helpers.EventEmitter.prototype);
 xSocket.Data.prototype.constructor = xSocket.Data;
@@ -54,6 +56,14 @@ xSocket.Data.prototype.getType = function (){
  */
 xSocket.Data.prototype.getTTL = function (){
     return this.__ttl;
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.Data.prototype.getTime = function (){
+    return this.__time;
 };
 
 /**

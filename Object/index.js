@@ -18,6 +18,7 @@ xSocket.xSocketObject = function xSocketObject(__ServerConfigure, __req){
     this.__socketDataMap   = {};
     this.__socketDataInc   = 0;
     this.__query           = {};
+    this.__timeOffset      = 0;
 
     this.on('destroy', this.__onDestroy);
     this.on('ws|disconnect', this.__onWsDisconnect);
@@ -29,6 +30,7 @@ xSocket.xSocketObject.prototype.constructor = xSocket.xSocketObject;
 xSocket.xSocketObject.MSG_SO_UPDATE = 0;
 xSocket.xSocketObject.MSG_SD_CREATE = 1;
 xSocket.xSocketObject.MSG_SD_UPDATE = 2;
+xSocket.xSocketObject.MSG_SO_TIME   = 3;
 
 /**
  *
@@ -44,6 +46,35 @@ xSocket.xSocketObject.prototype.getID = function (){
  */
 xSocket.xSocketObject.prototype.getSign = function (){
     return this.__sign || '';
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.xSocketObject.prototype.getTime = function (){
+    return Date.now() + this.__timeOffset;
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.xSocketObject.prototype.getTimeOffset = function (){
+    return this.__timeOffset;
+};
+
+/**
+ *
+ * @param timeOffset
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.setTimeOffset = function (timeOffset){
+    if(typeof timeOffset !== 'number' || timeOffset !== timeOffset){
+        return false;
+    }
+    this.__timeOffset = Math.round(timeOffset);
+    return true;
 };
 
 /**
@@ -193,7 +224,8 @@ xSocket.xSocketObject.prototype.send = function (type, data, ttl){
         'ID' : String(++this.__socketDataInc),
         'type' : type,
         'data' : data,
-        'ttl' : ttl
+        'ttl' : ttl,
+        'time' : this.getTime()
     }, this);
     if(socketData.getTTL()){
         this.__socketDataMap[socketData.getID()] = socketData;
@@ -207,7 +239,8 @@ xSocket.xSocketObject.prototype.send = function (type, data, ttl){
             Number(socketData.getID()),
             socketData.getType(),
             socketData.getTTL(),
-            socketData.getData()
+            socketData.getData(),
+            socketData.getTime()
         ])){
             return socketData.destroy('Send failed');
         }
@@ -304,8 +337,12 @@ xSocket.xSocketObject.prototype.update = function (ws){
             this.getID(),
             this.getSign(),
             typeof this.__serverConfigure === 'object' ? this.__serverConfigure : {},
-            xSocket.VERSION
+            xSocket.VERSION,
+            Date.now()
         ]);
+    }else{
+        this.setTimeOffset(ws.timeOffset);
+        ws.sendObject([xSocket.xSocketObject.MSG_SO_TIME, Date.now()]);
     }
     this.__ws = ws;
     ws.SocketObject = this;
@@ -337,6 +374,9 @@ xSocket.xSocketObject.prototype.__onWsConnect = function (){
 };
 
 xSocket.xSocketObject.prototype.__onWsMessage = function (body){
+    if(body[0] === xSocket.xSocketObject.MSG_SO_TIME){
+        return this.__onWsTime(body);
+    }
     var ID = body[1];
     if(typeof ID !== 'number' || ID % 1 !== 0 || ID < 1){
         return;
@@ -350,7 +390,8 @@ xSocket.xSocketObject.prototype.__onWsMessage = function (body){
             'ID' : String(ID),
             'type' : body[2],
             'ttl' : body[3],
-            'data' : body[4]
+            'data' : body[4],
+            'time' : body[5]
         }, this);
         this.emit('data', socketData);
         this.emit('data|' + socketData.getType(), socketData);
@@ -364,5 +405,18 @@ xSocket.xSocketObject.prototype.__onWsMessage = function (body){
             socketData.setError(body[3] || false);
             socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
         }
+    }
+};
+
+xSocket.xSocketObject.prototype.__onWsTime = function (body){
+    var ws = this.getConnection();
+    if(!ws || typeof body[1] !== 'number'){
+        return;
+    }
+    if(this.isServer()){
+        ws.sendObject([xSocket.xSocketObject.MSG_SO_TIME, body[1], Date.now()]);
+    }else if(typeof body[2] === 'number'){
+        var now = Date.now();
+        this.setTimeOffset(body[2] + (now - body[1]) / 2 - now);
     }
 };

@@ -13,7 +13,7 @@ xSocket.process = false;
 
 if(typeof module === 'object' && module.exports){
     module.exports = xSocket;
-}else{
+}else if(xSocket.window){
     window.xSocket = xSocket;
 }
 xSocket.helpers = new function helpersObject (){
@@ -272,13 +272,15 @@ xSocket.Data = function xSocketData(__isOutput, __object, __socketObject){
     this.__type         = typeof __object.type === 'string' ? __object.type : '';
     this.__data         = typeof __object.data === 'object' ? __object.data : {};
     this.__ttl          = typeof __object.ttl === 'number' && __object.ttl % 1 === 0 && __object.ttl >= 0 ? __object.ttl : xSocket.Data.DEFAULT_TTL;
+    var now             = this.__socketObject ? this.__socketObject.getTime() : Date.now();
+    this.__time         = typeof __object.time === 'number' && __object.time > 0 ? __object.time : now;
     this.__resData      = {};
     this.__error        = false;
     this.__status       = xSocket.Data.STATUS_NEW;
     this.__destroy      = false;
     this.__ttlTimeout   = setTimeout(function (){
         $this.destroy('ttl', true);
-    }, this.__ttl);
+    }, Math.max(0, Math.min(this.__ttl, this.__ttl - (now - this.__time))));
 };
 xSocket.Data.prototype = Object.create(xSocket.helpers.EventEmitter.prototype);
 xSocket.Data.prototype.constructor = xSocket.Data;
@@ -309,6 +311,14 @@ xSocket.Data.prototype.getType = function (){
  */
 xSocket.Data.prototype.getTTL = function (){
     return this.__ttl;
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.Data.prototype.getTime = function (){
+    return this.__time;
 };
 
 /**
@@ -536,6 +546,7 @@ xSocket.xSocketObject = function xSocketObject(__ServerConfigure, __req){
     this.__socketDataMap   = {};
     this.__socketDataInc   = 0;
     this.__query           = {};
+    this.__timeOffset      = 0;
 
     this.on('destroy', this.__onDestroy);
     this.on('ws|disconnect', this.__onWsDisconnect);
@@ -547,6 +558,7 @@ xSocket.xSocketObject.prototype.constructor = xSocket.xSocketObject;
 xSocket.xSocketObject.MSG_SO_UPDATE = 0;
 xSocket.xSocketObject.MSG_SD_CREATE = 1;
 xSocket.xSocketObject.MSG_SD_UPDATE = 2;
+xSocket.xSocketObject.MSG_SO_TIME   = 3;
 
 /**
  *
@@ -562,6 +574,35 @@ xSocket.xSocketObject.prototype.getID = function (){
  */
 xSocket.xSocketObject.prototype.getSign = function (){
     return this.__sign || '';
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.xSocketObject.prototype.getTime = function (){
+    return Date.now() + this.__timeOffset;
+};
+
+/**
+ *
+ * @returns {number}
+ */
+xSocket.xSocketObject.prototype.getTimeOffset = function (){
+    return this.__timeOffset;
+};
+
+/**
+ *
+ * @param timeOffset
+ * @returns {boolean}
+ */
+xSocket.xSocketObject.prototype.setTimeOffset = function (timeOffset){
+    if(typeof timeOffset !== 'number' || timeOffset !== timeOffset){
+        return false;
+    }
+    this.__timeOffset = Math.round(timeOffset);
+    return true;
 };
 
 /**
@@ -711,7 +752,8 @@ xSocket.xSocketObject.prototype.send = function (type, data, ttl){
         'ID' : String(++this.__socketDataInc),
         'type' : type,
         'data' : data,
-        'ttl' : ttl
+        'ttl' : ttl,
+        'time' : this.getTime()
     }, this);
     if(socketData.getTTL()){
         this.__socketDataMap[socketData.getID()] = socketData;
@@ -725,7 +767,8 @@ xSocket.xSocketObject.prototype.send = function (type, data, ttl){
             Number(socketData.getID()),
             socketData.getType(),
             socketData.getTTL(),
-            socketData.getData()
+            socketData.getData(),
+            socketData.getTime()
         ])){
             return socketData.destroy('Send failed');
         }
@@ -822,8 +865,12 @@ xSocket.xSocketObject.prototype.update = function (ws){
             this.getID(),
             this.getSign(),
             typeof this.__serverConfigure === 'object' ? this.__serverConfigure : {},
-            xSocket.VERSION
+            xSocket.VERSION,
+            Date.now()
         ]);
+    }else{
+        this.setTimeOffset(ws.timeOffset);
+        ws.sendObject([xSocket.xSocketObject.MSG_SO_TIME, Date.now()]);
     }
     this.__ws = ws;
     ws.SocketObject = this;
@@ -855,6 +902,9 @@ xSocket.xSocketObject.prototype.__onWsConnect = function (){
 };
 
 xSocket.xSocketObject.prototype.__onWsMessage = function (body){
+    if(body[0] === xSocket.xSocketObject.MSG_SO_TIME){
+        return this.__onWsTime(body);
+    }
     var ID = body[1];
     if(typeof ID !== 'number' || ID % 1 !== 0 || ID < 1){
         return;
@@ -868,7 +918,8 @@ xSocket.xSocketObject.prototype.__onWsMessage = function (body){
             'ID' : String(ID),
             'type' : body[2],
             'ttl' : body[3],
-            'data' : body[4]
+            'data' : body[4],
+            'time' : body[5]
         }, this);
         this.emit('data', socketData);
         this.emit('data|' + socketData.getType(), socketData);
@@ -882,6 +933,19 @@ xSocket.xSocketObject.prototype.__onWsMessage = function (body){
             socketData.setError(body[3] || false);
             socketData.setStatus(xSocket.Data.STATUS_RESPONSE);
         }
+    }
+};
+
+xSocket.xSocketObject.prototype.__onWsTime = function (body){
+    var ws = this.getConnection();
+    if(!ws || typeof body[1] !== 'number'){
+        return;
+    }
+    if(this.isServer()){
+        ws.sendObject([xSocket.xSocketObject.MSG_SO_TIME, body[1], Date.now()]);
+    }else if(typeof body[2] === 'number'){
+        var now = Date.now();
+        this.setTimeOffset(body[2] + (now - body[1]) / 2 - now);
     }
 };
 
@@ -1033,6 +1097,7 @@ xSocket.Client = function xSocketClient(serverUrl, __query, __settings){
                             __isVersionWarned = true;
                             console.warn('[warn|xSocket]', 'Version mismatch', 'client ' + xSocket.VERSION + ', server ' + (body[4] || 'unknown'));
                         }
+                        ws.timeOffset = typeof body[5] === 'number' ? body[5] - Date.now() : 0;
                         ws.query = {
                             'xSOId' : String(body[1]),
                             'xSOSign' : String(body[2]),
