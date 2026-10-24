@@ -1,7 +1,7 @@
 {
   "name": "xsocket",
   "description": "WebSocket client and server for Node.js and the browser: request-response messages with TTL, auth, automatic reconnect and session recovery",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "author": "pr!de",
   "license": "MIT",
   "homepage": "https://github.com/pride-oO/xsocket",
