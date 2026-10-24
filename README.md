@@ -11,6 +11,7 @@ WebSocket client and server for Node.js and the browser.
 - Binary messages: `ArrayBuffer`, `TypedArray` or `Buffer` as data, received as `Uint8Array` (`Buffer` in Node.js)
 - Version check: client and server warn in console if versions differ
 - Compact JSON protocol
+- Python (asyncio) server and client with the same protocol: [python/README.md](python/README.md)
 
 ```
 npm install xsocket

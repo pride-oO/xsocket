@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xsocket"
+dynamic = ["version"]
+description = "WebSocket client and server for Python (asyncio), compatible with xSocket for Node.js and the browser"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "pr!de" }]
+requires-python = ">=3.9"
+dependencies = ["websockets>=13"]
+keywords = ["socket", "ws", "wss", "websocket", "message", "client", "server", "asyncio"]
+
+[project.urls]
+Homepage = "https://github.com/pride-oO/xsocket"
+
+[tool.setuptools]
+packages = ["xsocket"]
+
+[tool.setuptools.dynamic]
+version = { attr = "xsocket.helpers.VERSION" }

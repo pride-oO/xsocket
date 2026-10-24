@@ -3,3 +3,5 @@
 node_modules
 Test
 package-lock.json
+python
+.github

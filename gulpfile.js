@@ -16,6 +16,9 @@ gulp.task('version', function(done) {
     if(fs.readFileSync('./Helpers/index.js', 'utf8').indexOf("xSocket.VERSION = '" + version + "'") === -1){
         throw new Error('xSocket.VERSION mismatch');
     }
+    if(fs.readFileSync('./python/xsocket/helpers.py', 'utf8').indexOf("VERSION = '" + version + "'") === -1){
+        throw new Error('Python VERSION mismatch');
+    }
     done();
 });
 
