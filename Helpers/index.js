@@ -233,4 +233,4 @@ xSocket.helpers = new function helpersObject (){
         return this;
     };
 };
-xSocket.VERSION = '2.1.1';
+xSocket.VERSION = '2.2.0';

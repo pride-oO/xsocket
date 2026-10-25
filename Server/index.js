@@ -17,16 +17,97 @@ xSocket.Server = class xSocketServer extends events
         this.__useCallback = {};
         this.__socketObjectList = {};
         this.__versionWarnMap = {};
+        this.__socketObjectTimeout = parseInt(this.getSettingsVal('socketObjectTimeout', 0));
+        if(this.__socketObjectTimeout !== this.__socketObjectTimeout || this.__socketObjectTimeout < 0){
+            this.__socketObjectTimeout = 0;
+            console.warn('[warn|xSocket]', 'socketObjectTimeout invalid value,', 'set default is 0');
+        }
+    }
 
-
-        const $this = this;
-        let options = $this.getSettingsVal('https', {});
+    /**
+     *
+     * @returns {{}}
+     */
+    getHttpsOptions(){
+        const options = Object.assign({}, this.getSettingsVal('https', {}));
         if(typeof options['cert'] === 'string'){
             options['cert'] = fs.readFileSync(options['cert']);
         }
         if(typeof options['key'] === 'string'){
             options['key'] = fs.readFileSync(options['key']);
         }
+        return options;
+    }
+
+    /**
+     *
+     * @returns {boolean}
+     */
+    isHttps(){
+        return !!this.getSettingsVal('https', {})['cert'];
+    }
+
+    /**
+     *
+     * @returns {boolean}
+     */
+    isListen(){
+        return this.__isListen === true;
+    }
+
+    /**
+     *
+     * @returns {string}
+     */
+    getHost(){
+        return this.getSettingsVal('host', undefined);
+    }
+
+    /**
+     *
+     * @param host
+     * @returns {xSocket.xSocketServer}
+     */
+    setHost(host){
+        return this.setSettingsVal('host', host);
+    }
+
+    /**
+     *
+     * @param port
+     * @returns {xSocket.xSocketServer}
+     */
+    setPort(port){
+        return this.setSettingsVal('port', port);
+    }
+
+    /**
+     *
+     * @param options
+     * @returns {xSocket.xSocketServer}
+     */
+    setHttps(options){
+        this.setSettingsVal('https', options);
+        if(this.isListen() && this.isHttps() && this.__http instanceof https.Server){
+            this.__http.setSecureContext(this.getHttpsOptions());
+        }
+        return this;
+    }
+
+    /**
+     *
+     * @param key
+     * @param val
+     * @returns {xSocket.xSocketServer}
+     */
+    setSettingsVal(key, val){
+        this.__settings[key] = val;
+        return this;
+    }
+
+    __createServer(){
+        const $this = this;
+        const SocketObjectTimeout = this.__socketObjectTimeout;
         const requestHandler = (req, res) => {
             $this.emit('https', req, res);
             setTimeout(() => {
@@ -36,12 +117,7 @@ xSocket.Server = class xSocketServer extends events
                 }catch (e){}
             }, 5000);
         };
-        this.__http = options['cert'] ? https.createServer(options, requestHandler) : http.createServer(requestHandler);
-        let SocketObjectTimeout = parseInt($this.getSettingsVal('socketObjectTimeout', 0));
-        if(SocketObjectTimeout !== SocketObjectTimeout || SocketObjectTimeout < 0){
-            SocketObjectTimeout = 0;
-            console.warn('[warn|xSocket]', 'socketObjectTimeout invalid value,', 'set default is 0');
-        }
+        this.__http = this.isHttps() ? https.createServer(this.getHttpsOptions(), requestHandler) : http.createServer(requestHandler);
         let perMessageDeflate = $this.getSettingsVal('perMessageDeflate', false);
         if(perMessageDeflate === true){
             perMessageDeflate = {
@@ -51,6 +127,7 @@ xSocket.Server = class xSocketServer extends events
             };
         }
         this.__ws = new ws.Server({'server' : this.__http, 'perMessageDeflate' : perMessageDeflate});
+        this.__ws.on('error', () => {});
         this.__ws.on('connection', (wsClient, req) => {
             wsClient.isConnection = () => {
                 return wsClient.readyState === 1;
@@ -219,7 +296,7 @@ xSocket.Server = class xSocketServer extends events
      * @returns {number}
      */
     getPort(){
-        return this.getSettings()['port'] || (this.__http instanceof https.Server ? 443 : 80);
+        return this.getSettings()['port'] || (this.isHttps() ? 443 : 80);
     }
 
     /**
@@ -324,16 +401,62 @@ xSocket.Server = class xSocketServer extends events
                 return;
             }
             $this.__isListen = null;
+            const errorHandler = (e) => {
+                $this.__isListen = false;
+                try{ $this.__ws.close(); }catch (e){}
+                $this.__http = undefined;
+                $this.__ws   = undefined;
+                $this.emit('error', e);
+                reject(e);
+            };
             try{
-                $this.__http.listen($this.getPort(), () => {
+                $this.__createServer();
+                $this.__http.once('error', errorHandler);
+                $this.__http.listen($this.getPort(), $this.getHost(), () => {
+                    $this.__http.off('error', errorHandler);
+                    $this.__http.on('error', (e) => {
+                        $this.emit('error', e);
+                    });
                     $this.__isListen = true;
                     $this.emit('listen');
                     resolve();
                 });
             }catch (e){
-                $this.emit('error', e);
-                reject(e);
+                errorHandler(e);
             }
+        });
+    }
+
+    /**
+     *
+     * @returns {Promise}
+     */
+    close(){
+        const $this = this;
+        return new Promise((resolve) => {
+            const httpServer = $this.__http;
+            const wsServer   = $this.__ws;
+            $this.__http = undefined;
+            $this.__ws   = undefined;
+            $this.__isListen = false;
+            for(const ID of Object.keys($this.__socketObjectList)){
+                $this.__socketObjectList[ID].destroy('close');
+            }
+            if(!httpServer){
+                return resolve();
+            }
+            for(const wsClient of wsServer.clients){
+                wsClient.closeConnection('close');
+            }
+            wsServer.close(() => {
+                httpServer.close(() => {
+                    $this.emit('close');
+                    resolve();
+                });
+                if(typeof httpServer.closeAllConnections === 'function'){
+                    httpServer.closeAllConnections();
+                }
+            });
         });
     }
 

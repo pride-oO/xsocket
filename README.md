@@ -23,6 +23,7 @@ npm install xsocket
 const xSocket = require('xsocket'); // OR import xSocket, { Server } from 'xsocket'
 
 const xServer = new xSocket.Server({
+    'host' : '0.0.0.0', // (Not necessary) Host listen (Default: all interfaces)
     'port' : 8752, // (Not necessary) Port listen (Default: 443 with certificate, 80 without)
     'socketObjectTimeout' : 30000, // (Not necessary) Allows the user to reconnect within 30 seconds (Default: 0)
     'perMessageDeflate' : true, // (Not necessary) Compress messages larger than 1KB, or ws perMessageDeflate options object (Default: false)
@@ -102,6 +103,21 @@ xServer.listen().then(() => {
 }).catch((e) => {
     console.log('Listen error', e.message);
 });
+
+// Stop: destroys all SocketObjects, closes connections, emits 'close'
+await xServer.close();
+
+// Port and certificate changes apply on the next listen()
+xServer.setHost('127.0.0.1');
+xServer.setPort(8753);
+xServer.setHttps({'cert' : '<path>/cert.pem', 'key' : '<path>/private.key'}); // OR setHttps({}) for ws://
+await xServer.listen();
+
+// Renew certificate without restart (only if server already runs with certificate)
+xServer.setHttps({'cert' : '<path>/new_cert.pem', 'key' : '<path>/new_private.key'});
+
+xServer.isListen(); // true|false
+xServer.isHttps();  // true|false
 ```
 
 

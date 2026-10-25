@@ -22,6 +22,7 @@ import xsocket
 
 async def main():
     xServer = xsocket.Server({
+        'host' : '0.0.0.0', # (Not necessary) Host listen (Default: all interfaces)
         'port' : 8752, # (Not necessary) Port listen (Default: 443 with certificate, 80 without)
         'socketObjectTimeout' : 30000, # (Not necessary) Allows the user to reconnect within 30 seconds (Default: 0)
         'perMessageDeflate' : True, # (Not necessary) Compress messages (Default: False)
@@ -61,6 +62,19 @@ async def main():
     xServer.on('listen', lambda: print('Listen event', xServer.getPort()))
 
     await xServer.listen()
+
+    # Stop: destroys all SocketObjects, closes connections, emits 'close'
+    # await xServer.close()
+
+    # Port and certificate changes apply on the next listen()
+    # xServer.setHost('127.0.0.1')
+    # xServer.setPort(8753)
+    # xServer.setHttps({'cert' : '<path>/cert.pem', 'key' : '<path>/private.key'}) # OR setHttps({}) for ws://
+    # await xServer.listen()
+
+    # Renew certificate without restart (only if server already runs with certificate)
+    # xServer.setHttps({'cert' : '<path>/new_cert.pem', 'key' : '<path>/new_private.key'})
+
     await asyncio.Future()
 
 asyncio.run(main())

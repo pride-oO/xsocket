@@ -25,11 +25,6 @@ class Server(EventEmitter):
         self._versionWarnMap    = {}
         self._sslContext        = None
 
-        options = self.getSettingsVal('https', {})
-        if options.get('cert'):
-            self._sslContext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            self._sslContext.load_cert_chain(options['cert'], options.get('key'))
-
         self._socketObjectTimeout = helpers.toInt(self.getSettingsVal('socketObjectTimeout', 0), -1)
         if self._socketObjectTimeout < 0:
             self._socketObjectTimeout = 0
@@ -42,7 +37,32 @@ class Server(EventEmitter):
         return self._socketObjectMap.get(ID, False)
 
     def getPort(self):
-        return self.getSettings().get('port') or (443 if self._sslContext else 80)
+        return self.getSettings().get('port') or (443 if self.isHttps() else 80)
+
+    def isHttps(self):
+        return bool(self.getSettingsVal('https', {}).get('cert'))
+
+    def isListen(self):
+        return self._isListen is True
+
+    def getHost(self):
+        return self.getSettingsVal('host')
+
+    def setHost(self, host):
+        return self.setSettingsVal('host', host)
+
+    def setPort(self, port):
+        return self.setSettingsVal('port', port)
+
+    def setHttps(self, options):
+        self.setSettingsVal('https', options)
+        if self.isListen() and self.isHttps() and self._sslContext:
+            self._sslContext.load_cert_chain(options['cert'], options.get('key'))
+        return self
+
+    def setSettingsVal(self, key, val):
+        self._settings[key] = val
+        return self
 
     def getSettings(self):
         return self._settings
@@ -99,9 +119,14 @@ class Server(EventEmitter):
         self._isListen = None
         perMessageDeflate = self.getSettingsVal('perMessageDeflate', False)
         try:
+            self._sslContext = None
+            if self.isHttps():
+                options = self.getSettingsVal('https', {})
+                self._sslContext = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+                self._sslContext.load_cert_chain(options['cert'], options.get('key'))
             self._server = await serve(
                 self.__onConnection,
-                None,
+                self.getHost(),
                 self.getPort(),
                 ssl=self._sslContext,
                 compression='deflate' if perMessageDeflate else None,
@@ -118,9 +143,12 @@ class Server(EventEmitter):
         for socketObject in list(self._socketObjectMap.values()):
             socketObject.destroy('close')
         if self._server:
-            self._server.close()
-            await self._server.wait_closed()
+            server = self._server
             self._server = None
+            self._isListen = False
+            server.close()
+            await server.wait_closed()
+            self.emit('close')
         self._isListen = False
 
     async def __onConnection(self, websocket):
