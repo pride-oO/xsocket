@@ -1,12 +1,14 @@
-const events = require('events');
-const ws     = require('ws');
-const http   = require('http');
-const https  = require('https');
-const fs     = require('fs');
-const crypto = require('crypto');
+import events from 'events';
+import ws from 'ws';
+import http from 'http';
+import https from 'https';
+import fs from 'fs';
+import crypto from 'crypto';
+import xSocket from './xSocket.js';
+import xSocketObject from './SocketObject.js';
+import { encodeMessage, decodeMessage } from './helpers.js';
 
-xSocket.Server = class xSocketServer extends events
-{
+export default class Server extends events {
 
     constructor(settings) {
         super();
@@ -66,7 +68,7 @@ xSocket.Server = class xSocketServer extends events
     /**
      *
      * @param host
-     * @returns {xSocket.xSocketServer}
+     * @returns {Server}
      */
     setHost(host){
         return this.setSettingsVal('host', host);
@@ -75,7 +77,7 @@ xSocket.Server = class xSocketServer extends events
     /**
      *
      * @param port
-     * @returns {xSocket.xSocketServer}
+     * @returns {Server}
      */
     setPort(port){
         return this.setSettingsVal('port', port);
@@ -84,7 +86,7 @@ xSocket.Server = class xSocketServer extends events
     /**
      *
      * @param options
-     * @returns {xSocket.xSocketServer}
+     * @returns {Server}
      */
     setHttps(options){
         this.setSettingsVal('https', options);
@@ -98,7 +100,7 @@ xSocket.Server = class xSocketServer extends events
      *
      * @param key
      * @param val
-     * @returns {xSocket.xSocketServer}
+     * @returns {Server}
      */
     setSettingsVal(key, val){
         this.__settings[key] = val;
@@ -132,7 +134,7 @@ xSocket.Server = class xSocketServer extends events
             wsClient.isConnection = () => {
                 return wsClient.readyState === 1;
             };
-            wsClient.closeConnection = function (msg){
+            wsClient.closeConnection = (msg) => {
                 try{
                     wsClient.close(1000, String(msg || 'close'));
                 }catch (e){}
@@ -150,7 +152,7 @@ xSocket.Server = class xSocketServer extends events
             wsClient.sendObject = (object) => {
                 try {
                     if(wsClient.isConnection()){
-                        wsClient.send(xSocket.helpers.encodeMessage(object));
+                        wsClient.send(encodeMessage(object));
                         return true;
                     }
                 }catch (e){}
@@ -193,7 +195,7 @@ xSocket.Server = class xSocketServer extends events
             if(!SocketObject){
                 wsClient.query['xSOId'] = crypto.randomUUID();
                 wsClient.query['xSOSign'] = crypto.randomUUID();
-                SocketObject = new xSocket.xSocketObject({'socketObjectTimeout' : SocketObjectTimeout}, req);
+                SocketObject = new xSocketObject({'socketObjectTimeout' : SocketObjectTimeout}, req);
                 const isAuth = $this.getSettingsVal('auth', false);
                 if(!isAuth && typeof $this.__useCallback['auth'] !== 'function'){
                     $this.use('auth', (SocketObject, successCallback) => {
@@ -237,8 +239,8 @@ xSocket.Server = class xSocketServer extends events
                 }
             }
             let msgInc = 0;
-            var countPing = 0;
-            var pingTimeout = setInterval(function (){
+            let countPing = 0;
+            const pingTimeout = setInterval(() => {
                 if(countPing > 4){
                     if(!msgInc){
                         return wsClient.closeConnection('pingTimeout');
@@ -255,7 +257,7 @@ xSocket.Server = class xSocketServer extends events
                     return;
                 }
                 try{
-                    const body = xSocket.helpers.decodeMessage(e.data);
+                    const body = decodeMessage(e.data);
                     if(body){
                         SocketObject.emit('ws|message', body);
                     }
@@ -367,7 +369,7 @@ xSocket.Server = class xSocketServer extends events
      *
      * @param target
      * @param callback
-     * @returns {xSocket.xSocketServer}
+     * @returns {Server}
      */
     use(target, callback){
         if(typeof target !== 'string' || target.length < 1){

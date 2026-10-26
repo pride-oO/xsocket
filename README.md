@@ -4,7 +4,7 @@ WebSocket client and server for Node.js and the browser.
 
 - Request-response: every message can wait for a reply (`sendReady`) with TTL
 - TTL counts from the send time on both sides, client clock is synchronized with the server
-- `require` and `import` (ESM) support
+- ES6 sources, `require` and `import` (ESM) support, ES5 browser build for old browsers
 - Automatic reconnect and session recovery within `socketObjectTimeout`
 - Auth hook on the server (`use('auth')`)
 - `ws://` or `wss://` depending on certificate, optional `perMessageDeflate` compression
@@ -122,12 +122,25 @@ xServer.isHttps();  // true|false
 
 
 
-## Client (ECMAScript 5+):
+## Builds
+
+| File | Format | Syntax | Use |
+|---|---|---|---|
+| `index.js` / `index.mjs` | CommonJS / ESM | ES6 | Node.js (server and client) |
+| `xSocket.mjs` / `xSocket.min.mjs` | ESM | ES6 | Modern browsers `<script type="module">`, bundlers |
+| `xSocket.js` / `xSocket.min.js` | UMD | ES5 (Babel) | Old browsers `<script>`, AMD, CommonJS. IE10+, Safari 6+, Android 4.4+, built-in `Promise` fallback |
+| `src/*.js` | ESM | ES6 | Native modules, own Babel/bundler config |
+
+```
+npm run build
+```
+
+## Client:
 
 
 ```javascript
 // Init 
-var xSocket = require('xsocket'); // OR import xSocket from 'xsocket' (bundlers use browser build) OR import xSocket from './xSocket.mjs' OR <script src="./xSocket.min.js"></script>
+var xSocket = require('xsocket'); // OR import xSocket, { Client } from 'xsocket' (bundlers use browser build) OR import xSocket from './xSocket.min.mjs' OR <script src="./xSocket.min.js"></script>
 
 var xClient = new xSocket(['wss://server_domain.com:8752'], {'name' : 'Bob'}); // Or xSocket.Client(), ws:// if server without certificate
 
