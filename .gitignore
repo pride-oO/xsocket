@@ -6,3 +6,5 @@ __pycache__
 *.egg-info
 python/build
 python/dist
+java/target
+cpp/build

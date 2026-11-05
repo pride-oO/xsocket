@@ -61,3 +61,25 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
+
+  go:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go test ./...
+        working-directory: go
+      - run: |
+          TAG="go/v${{ needs.check.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Already tagged"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+      - run: GOPROXY=proxy.golang.org go list -m "github.com/pride-oO/xsocket/go/v2@v${{ needs.check.outputs.version }}"

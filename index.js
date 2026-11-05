@@ -1,5 +1,5 @@
 /**
- * xSocket v2.3.0
+ * xSocket v2.4.0
  * @licence MIT
  * @author Vadim Pride (pride.mk.ua@gmail.com)
  * @link https://github.com/pride-oO/xsocket
@@ -16,7 +16,7 @@ var crypto = require('crypto');
 const xSocket = function xSocket(serverUrl, query, settings){
     return new xSocket.Client(serverUrl, query, settings);
 };
-xSocket.VERSION   = '2.3.0';
+xSocket.VERSION   = '2.4.0';
 xSocket.window    = typeof window === 'object' ? window : false;
 xSocket.WebSocket = typeof WebSocket !== 'undefined' ? WebSocket : false;
 xSocket.process   = false;

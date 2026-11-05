@@ -47,6 +47,21 @@ gulp.task('version', (done) => {
     if(fs.readFileSync('./python/xsocket/helpers.py', 'utf8').indexOf("VERSION = '" + version + "'") === -1){
         throw new Error('Python VERSION mismatch');
     }
+    if(fs.readFileSync('./go/helpers.go', 'utf8').indexOf('VERSION = "' + version + '"') === -1){
+        throw new Error('Go VERSION mismatch');
+    }
+    if(fs.readFileSync('./java/src/main/java/io/github/prideoo/xsocket/XSocket.java', 'utf8').indexOf('VERSION = "' + version + '"') === -1){
+        throw new Error('Java VERSION mismatch');
+    }
+    if(fs.readFileSync('./java/pom.xml', 'utf8').indexOf('<version>' + version + '</version>') === -1){
+        throw new Error('Java pom version mismatch');
+    }
+    if(fs.readFileSync('./cpp/include/xsocket/helpers.hpp', 'utf8').indexOf('VERSION = "' + version + '"') === -1){
+        throw new Error('C++ VERSION mismatch');
+    }
+    if(fs.readFileSync('./cpp/CMakeLists.txt', 'utf8').indexOf('project(xsocket VERSION ' + version) === -1){
+        throw new Error('C++ CMake version mismatch');
+    }
     done();
 });
 

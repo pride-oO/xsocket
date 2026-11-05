@@ -8,7 +8,7 @@ import time
 
 from websockets.protocol import State
 
-VERSION = '2.3.0'
+VERSION = '2.4.0'
 
 MSG_SO_UPDATE = 0
 MSG_SD_CREATE = 1

@@ -4,4 +4,7 @@ node_modules
 Test
 package-lock.json
 python
+java
+go
+cpp
 .github
